@@ -1,0 +1,71 @@
+step 1 : run the consul in cmd [consul agent -dev]
+
+Step 2 : add dependancy in other microservices  and run all the microservices 
+properties in pom :<spring-cloud.version>2023.0.3</spring-cloud.version>
+
+<dependency>
+<groupId>org.springframework.cloud</groupId>
+<artifactId>spring-cloud-starter-consul-discovery</artifactId>
+</dependency>
+
+<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>org.springframework.cloud</groupId>
+				<artifactId>spring-cloud-dependencies</artifactId>
+				<version>${spring-cloud.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
+
+spring.cloud.consul.host=localhost
+spring.cloud.consul.port=8500
+spring.cloud.consul.discovery.enabled=true
+spring.cloud.consul.discovery.register=true
+
+step 3 : create gateway service 
+<properties>
+<java.version>17</java.version>
+<spring-cloud.version>2023.0.3</spring-cloud.version>
+</properties>
+
+//for RouteLocator class 
+<dependency>
+<groupId>org.springframework.cloud</groupId>
+<artifactId>spring-cloud-starter-gateway</artifactId>
+</dependency>
+
+//for consul 
+<dependency>
+<groupId>org.springframework.cloud</groupId>
+<artifactId>spring-cloud-starter-consul-discovery</artifactId>
+</dependency>
+
+@EnableDiscoveryClient - in ctler have to give this after @springbootApp
+
+
+@SpringBootApplication
+@EnableDiscoveryClient
+public class GatewayServiceApplication {
+	public static void main(String[] args) {
+		SpringApplication.run(GatewayServiceApplication.class, args);
+	}
+	@Bean
+    public RouteLocator routeLocator(RouteLocatorBuilder routeLocatorBuilder) {
+        return routeLocatorBuilder.routes()
+                .route(r -> r.path("/Students-Information/**")    // name from application.properties
+                        .filters(f -> f.stripPrefix(1)
+				 .retry(config -> config.setRetries(3).setStatuses(HttpStatus.INTERNAL_SERVER_ERROR))
+				 .circuitBreaker(c -> c.setName("staffServiceCB")
+				.setFallbackUri("forward:/fallback")))
+                        .uri("lb://Students-Information"))
+                .build();
+// circuit breaker used for when other service is down
+// retry mechanism = it will check service many times even though once it is failed
+    }
+}
+
+
+check the consul here : http://localhost:8500/ui/dc1/services
